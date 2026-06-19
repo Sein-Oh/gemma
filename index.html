@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemma 4 Multi-Thread Client</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --border-color: #e9ecef;
+            --primary: #4f46e5;
+            --danger: #ef4444;
+            --success: #10b981;
+            --text-main: #1f2937;
+            --sidebar-bg: #1f2937;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        #app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 대화 목록 사이드바 */
+        #sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            color: #f3f4f6;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            border-right: 1px solid #374151;
+            transition: all 0.3s ease;
+        }
+
+        #sidebar.hidden {
+            margin-left: -280px;
+        }
+
+        .sidebar-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #9ca3af;
+            margin-bottom: 10px;
+            margin-top: 15px;
+        }
+
+        .thread-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .thread-item {
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #374151;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            transition: background 0.2s;
+        }
+
+        .thread-item:hover {
+            background: #4b5563;
+        }
+
+        .thread-item.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .thread-title-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .delete-thread-btn {
+            background: transparent;
+            border: none;
+            color: #f87171;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .delete-thread-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        /* 메인 콘텐츠 영역 */
+        #main-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+            padding: 20px;
+        }
+
+        /* 상단 설정 패널 */
+        /* 1. 레이아웃 줄바꿈 방지 및 자연스러운 변화 */
+        #settings-panel {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            white-space: nowrap;
+            /* 텍스트 줄바꿈 방지 */
+        }
+
+        .title_label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            margin: 10px;
+        }
+
+        .setting-group textarea {
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 14px;
+            margin-bottom: 5px;
+            resize: none;
+        }
+
+
+        /* 공통 버튼 */
+        button {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            margin-top: 5px;
+        }
+
+        button:hover {
+            background: #f3f4f6;
+        }
+
+        button.primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+        }
+
+        button.primary:hover {
+            opacity: 0.9;
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* 채팅 본문 */
+        #chat-container {
+            flex: 1;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        #chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* 대화 세트 */
+        .chat-set {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            background: #fafafa;
+            position: relative;
+        }
+
+        .chat-set.excluded {
+            opacity: 0.5;
+            background: #e5e7eb;
+            border-style: dashed;
+        }
+
+        .set-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+        }
+
+        .set-controls button {
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+
+        .msg-block {
+            margin-top: 10px;
+        }
+
+        .msg-block .role {
+            font-weight: bold;
+            font-size: 12px;
+            color: #4b5563;
+            margin-bottom: 4px;
+        }
+
+        .msg-user {
+            color: #1e3a8a;
+            white-space: pre-wrap;
+        }
+
+        /* 줄바꿈 시각화 */
+        .msg-ai {
+            color: #065f46;
+            background: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #f0f0f0;
+        }
+
+        .msg-ai pre {
+            background: #1e1e2e;
+            color: #cdd6f4;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+
+        .msg-ai code {
+            background: #e9ecef;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .msg-ai pre code {
+            background: none;
+            padding: 0;
+            font-size: inherit;
+        }
+
+        .msg-ai p {
+            margin: 4px 0 12px 0;
+            line-height: 1.6;
+        }
+
+        /* 하단 파라미터 조절 패널 */
+        #inline-param-panel {
+            padding: 10px 15px;
+            background: #fdfdfd;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 25px;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .param-inline-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .param-inline-group label {
+            color: #4b5563;
+        }
+
+        .param-inline-group input[type="range"] {
+            width: 140px;
+            cursor: pointer;
+        }
+
+        /* 2번 조건: 입력 영역 (줄바꿈이 잘 보이도록 크기 최적화) */
+        #input-panel {
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            background: #fff;
+            align-items: center;
+        }
+
+        #user-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            resize: none;
+            height: 54px;
+            font-size: 14px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        /* 사이드바 애니메이션과 메인 레이아웃의 자연스러운 결합 */
+        #main-layout {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+            padding: 20px;
+            min-width: 0;
+        }
+
+        #chat-title-input {
+            border: none;
+            border-radius: 12px;
+            height: 30px;
+            flex: 1;
+            font-size: 16px;
+            color: #6b7280;
+            padding-left: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app-container">
+        <div id="sidebar">
+            <button onclick="promptChangeServer()">서버 변경</button>
+            <button onclick="promptChangeModel()">모델 변경</button>
+            <button onclick="exportToTxt()">대화 내보내기 (.txt)</button>
+            <button onclick="importFromTxt()">대화 불러오기 (.txt)</button>
+            <input type="file" id="txt-file-input" style="display: none;" accept=".txt"
+                onchange="handleTxtImport(event)">
+            <hr style='width:100%'>
+            <button class="primary" onclick="createNewThread()" style="width: 100%; font-weight: bold; padding: 10px;">➕
+                새 대화 시작</button>
+            <div class="sidebar-title">💬 대화 목록</div>
+            <div id="thread-list" class="thread-list"></div>
+        </div>
+
+        <div id="main-layout">
+            <div id="settings-panel">
+                <button onclick="toggleSidebar()" style='width:50px;'>☰</button>
+                <label>대화명</label>
+                <input type="text" id="chat-title-input" placeholder="대화 제목을 입력하세요"
+                    oninput="updateCurrentThreadTitle(this.value)">
+            </div>
+            <div class="setting-group" style="grid-column: span 2;">
+                <label class="title_label">System Command (이 대화방의 역할 정의)</label>
+                <textarea id="system-prompt" rows="4" oninput="updateCurrentSystemPrompt(this.value)"></textarea>
+            </div>
+            <label class="title_label">대화 이력</label>
+            <div id="chat-container">
+                <div id="chat-box"></div>
+                <div id="inline-param-panel">
+                    <div class="param-inline-group">
+                        <label for="param-temp">Temperature: <span id="temp-val"
+                                style="font-weight: bold; color: var(--primary);">0.7</span></label>
+                        <input type="range" id="param-temp" min="0" max="2.0" step="0.1" value="0.7"
+                            oninput="updateTempDisplay(this.value)" onchange="saveSettings()">
+                    </div>
+                    <div class="param-inline-group">
+                        <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="param-thinking" onchange="saveSettings()"> Enable Thinking
+                        </label>
+                    </div>
+                </div>
+
+                <div id="input-panel">
+                    <textarea id="user-input" placeholder="메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄바꿈)"
+                        onkeydown="handleKeyDown(event)"></textarea>
+                    <button class="primary" onclick="sendMessage()" style="height: 54px; padding: 0 20px;">전송</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 글로벌 기본 설정 상태
+        let config = {
+            serverUrl: 'http://localhost:11434',
+            modelName: 'gemma4',
+            temperature: 0.7,
+            enableThinking: false
+        };
+
+        // 멀티 스레드 대화 구조: 각 방별로 systemPrompt가 개별 포함됨
+        let threads = []; // [{ id, title, systemPrompt, chatSets: [] }]
+        let currentThreadId = null;
+        let chatSets = [];
+        let isGenerating = false;
+        let saveTimer = null;
+
+        // 앱 초기 가동 및 로드
+        document.addEventListener('DOMContentLoaded', async () => {
+            localforage.config({ name: 'Gemma4MultiThreadClient', storeName: 'data_store' });
+
+            const savedConfig = await localforage.getItem('client_config');
+            if (savedConfig) config = { ...config, ...savedConfig };
+
+            const savedThreads = await localforage.getItem('gemma_threads');
+            if (savedThreads && savedThreads.length > 0) {
+                threads = savedThreads;
+            }
+
+            const savedCurrentId = await localforage.getItem('gemma_current_thread_id');
+            if (savedCurrentId && threads.find(t => t.id === savedCurrentId)) {
+                currentThreadId = savedCurrentId;
+            } else if (threads.length > 0) {
+                currentThreadId = threads[0].id;
+            }
+
+            if (threads.length === 0) {
+                const defaultId = Date.now().toString();
+                threads.push({ id: defaultId, title: '기본 대화', systemPrompt: '', chatSets: [] });
+                currentThreadId = defaultId;
+                await saveThreadsToStorage();
+            }
+
+            syncCurrentThreadData();
+            updateSettingsUI();
+            renderThreadList();
+            renderChatSets();
+        });
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('hidden');
+        }
+
+        // 1번 조건: 대화방 데이터 동기화 시 시스템 메시지도 매핑 호출
+        function syncCurrentThreadData() {
+            const activeThread = threads.find(t => t.id === currentThreadId);
+            if (activeThread) {
+                chatSets = activeThread.chatSets;
+                document.getElementById('chat-title-input').value = activeThread.title;
+                document.getElementById('system-prompt').value = activeThread.systemPrompt || '';
+            }
+        }
+
+        async function createNewThread() {
+            const newId = Date.now().toString();
+            const newThread = { id: newId, title: `새 대화 (${threads.length + 1})`, systemPrompt: '', chatSets: [] };
+            threads.unshift(newThread);
+            currentThreadId = newId;
+
+            await saveThreadsToStorage();
+            syncCurrentThreadData();
+            renderThreadList();
+            renderChatSets();
+        }
+
+        async function switchThread(id) {
+            currentThreadId = id;
+            await localforage.setItem('gemma_current_thread_id', currentThreadId);
+            syncCurrentThreadData();
+            renderThreadList();
+            renderChatSets();
+        }
+
+        async function updateCurrentThreadTitle(newTitle) {
+            const activeThread = threads.find(t => t.id === currentThreadId);
+            if (activeThread) {
+                activeThread.title = newTitle || '이름 없는 대화';
+                await saveThreadsToStorage();
+                renderThreadList();
+            }
+        }
+
+        // 1번 조건: 시스템 메시지 실시간 변경 및 대화방 오브젝트 내 영구 저장
+        function updateCurrentSystemPrompt(val) {
+            const activeThread = threads.find(t => t.id === currentThreadId);
+            if (activeThread) {
+                activeThread.systemPrompt = val;
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(() => saveThreadsToStorage(), 500);
+            }
+        }
+
+        async function deleteThread(id, event) {
+            event.stopPropagation();
+            if (threads.length <= 1) {
+                alert("최소 한 개의 대화방은 유지되어야 합니다.");
+                return;
+            }
+            if (!confirm("이 대화방의 모든 이력을 영구 삭제하시겠습니까?")) return;
+
+            threads = threads.filter(t => t.id !== id);
+            if (currentThreadId === id) {
+                currentThreadId = threads[0].id;
+            }
+
+            await saveThreadsToStorage();
+            await localforage.setItem('gemma_current_thread_id', currentThreadId);
+            syncCurrentThreadData();
+            renderThreadList();
+            renderChatSets();
+        }
+
+        async function saveThreadsToStorage() {
+            await localforage.setItem('gemma_threads', threads);
+        }
+
+        function renderThreadList() {
+            const listContainer = document.getElementById('thread-list');
+            listContainer.innerHTML = '';
+
+            threads.forEach(t => {
+                const item = document.createElement('div');
+                item.className = `thread-item ${t.id === currentThreadId ? 'active' : ''}`;
+                item.onclick = () => switchThread(t.id);
+
+                item.innerHTML = `
+                <span class="thread-title-text">${escapeHtml(t.title)}</span>
+                <button class="delete-thread-btn" onclick="deleteThread('${t.id}', event)">✕</button>
+            `;
+                listContainer.appendChild(item);
+            });
+        }
+
+        function updateSettingsUI() {
+            document.getElementById('param-temp').value = config.temperature;
+            document.getElementById('temp-val').innerText = config.temperature;
+            document.getElementById('param-thinking').checked = config.enableThinking;
+        }
+
+        function updateTempDisplay(val) {
+            document.getElementById('temp-val').innerText = val;
+        }
+
+        async function saveSettings() {
+            config.temperature = parseFloat(document.getElementById('param-temp').value) || 0.7;
+            config.enableThinking = document.getElementById('param-thinking').checked;
+            await localforage.setItem('client_config', config);
+        }
+
+        async function promptChangeServer() {
+            const newUrl = prompt("새로운 로컬 서버 URL을 입력하세요:", config.serverUrl);
+            if (newUrl) {
+                config.serverUrl = newUrl.replace(/\/$/, "");
+                await saveSettings();
+                updateSettingsUI();
+            }
+        }
+
+        async function promptChangeModel() {
+            const newModel = prompt("사용할 모델명을 정확히 입력하세요:", config.modelName);
+            if (newModel) {
+                config.modelName = newModel;
+                await saveSettings();
+                updateSettingsUI();
+            }
+        }
+
+        function renderChatSets() {
+            const chatBox = document.getElementById('chat-box');
+            chatBox.innerHTML = '';
+
+            chatSets.forEach((set) => {
+                const setDiv = document.createElement('div');
+                setDiv.className = `chat-set ${set.excluded ? 'excluded' : ''}`;
+                setDiv.id = `set-${set.id}`;
+
+                setDiv.innerHTML = `
+                <div class="set-controls">
+                    <button onclick="toggleExclude('${set.id}')">${set.excluded ? '🔄 다시 포함' : '🚫 맥락 제외'}</button>
+                    <button onclick="deleteSet('${set.id}')" ${set.excluded ? '' : 'disabled'} style="${set.excluded ? 'color:var(--danger);' : ''}">🗑️ 삭제</button>
+                </div>
+                <div class="msg-block">
+                    <div class="role msg-user">👤 User</div>
+                    <div>${escapeHtml(set.user)}</div>
+                </div>
+                <div class="msg-block">
+                    <div class="role msg-ai">🤖 Gemma 4</div>
+                    <div class="ai-content-area">${DOMPurify.sanitize(marked.parse(set.ai || 'Thinking...'))}</div>
+                </div>
+            `;
+                chatBox.appendChild(setDiv);
+            });
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function toggleExclude(id) {
+            const set = chatSets.find(s => s.id === id);
+            if (set) {
+                set.excluded = !set.excluded;
+                await saveThreadsToStorage();
+                renderChatSets();
+            }
+        }
+
+        async function deleteSet(id) {
+            const activeThread = threads.find(t => t.id === currentThreadId);
+            if (activeThread) {
+                activeThread.chatSets = activeThread.chatSets.filter(s => s.id !== id);
+                chatSets = activeThread.chatSets;
+                await saveThreadsToStorage();
+                renderChatSets();
+            }
+        }
+
+
+        async function sendMessage() {
+            const start = performance.now()
+            if (isGenerating) return;
+            const inputEl = document.getElementById('user-input');
+            const content = inputEl.value.trim();
+            if (!content) return;
+            isGenerating = true;
+            inputEl.value = '';
+
+            const newSetId = Date.now().toString();
+            const newSet = { id: newSetId, user: content, ai: '', excluded: false };
+            chatSets.push(newSet);
+            await saveThreadsToStorage();
+            renderChatSets();
+
+            const activeThread = threads.find(t => t.id === currentThreadId);
+            let apiMessages = [];
+
+            if (activeThread?.systemPrompt?.trim()) {
+                apiMessages.push({ role: 'system', content: activeThread.systemPrompt });
+            }
+
+            chatSets.slice(0, -1).forEach(set => {
+                if (!set.excluded) {
+                    apiMessages.push({ role: 'user', content: set.user });
+                    if (set.ai) apiMessages.push({ role: 'assistant', content: set.ai });
+                }
+            });
+
+            apiMessages.push({ role: 'user', content });
+
+            try {
+
+                const endpoint = config.serverUrl.replace(/\/$/, '').endsWith('/v1/chat/completions')
+                    ? config.serverUrl.replace(/\/$/, '')
+                    : `${config.serverUrl.replace(/\/$/, '')}/v1/chat/completions`
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: config.modelName,
+                        messages: apiMessages,
+                        stream: true,
+                        temperature: config.temperature,
+                        chat_template_kwargs: {
+                            enable_thinking: config.enableThinking
+                        }
+                    })
+                });
+
+                if (!response.ok) throw new Error();
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                const aiContentDiv = document.querySelector(`#set-${newSetId} .ai-content-area`);
+
+                let fullReply = '';
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        const s = line.trim();
+                        if (!s.startsWith('data:')) continue;
+
+                        const data = s.slice(5).trim();
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed?.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                fullReply += delta;
+                                aiContentDiv.innerHTML = DOMPurify.sanitize(marked.parse(fullReply));
+                            }
+                        } catch { }
+                    }
+                }
+
+                newSet.ai = fullReply;
+                const end = performance.now()
+                const elapsed = ((end - start) / 1000).toFixed(1)
+                aiContentDiv.innerHTML += `[${elapsed}초 소요]`
+                console.log(end-start)
+                await saveThreadsToStorage();
+
+            } catch (e) {
+                document.querySelector(`#set-${newSetId} .ai-content-area`).innerText = '⚠️ 서버 연결 실패';
+            } finally {
+                isGenerating = false;
+            }
+        }
+
+        // 1번 조건 보완: 내보내기 시 대화셋과 함께 방 고유 시스템 프롬프트도 묶어서 관리
+        function exportToTxt() {
+            if (chatSets.length === 0) {
+                alert("내보낼 대화 기록이 없습니다.");
+                return;
+            }
+
+            const activeThread = threads.find(t => t.id === currentThreadId);
+            const defaultName = activeThread ? activeThread.title : `gemma_chat_${Date.now()}`;
+
+            let fileName = prompt("저장할 대화 텍스트 파일명을 입력하세요 (확장자 제외):", defaultName);
+            if (fileName === null) return;
+            fileName = fileName.trim() || defaultName;
+
+            const exportPayload = {
+                systemPrompt: activeThread ? (activeThread.systemPrompt || '') : '',
+                chatSets: chatSets
+            };
+            const dataStr = JSON.stringify(exportPayload, null, 2);
+            const blob = new Blob([dataStr], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${fileName}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importFromTxt() {
+            document.getElementById('txt-file-input').click();
+        }
+
+        // 1번 조건 보완: 불러오기 시 저장되어 있던 시스템 프롬프트를 함께 신규 대화방으로 인코딩 통합
+        function handleTxtImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+
+                    if (importedData.chatSets && Array.isArray(importedData.chatSets)) {
+                        const newId = Date.now().toString();
+                        const baseTitle = file.name.replace(/\.[^/.]+$/, "");
+
+                        const newThread = {
+                            id: newId,
+                            title: `[가져옴] ${baseTitle}`,
+                            systemPrompt: importedData.systemPrompt || '',
+                            chatSets: importedData.chatSets
+                        };
+
+                        threads.unshift(newThread);
+                        currentThreadId = newId;
+
+                        await saveThreadsToStorage();
+                        await localforage.setItem('gemma_current_thread_id', currentThreadId);
+
+                        syncCurrentThreadData();
+                        renderThreadList();
+                        renderChatSets();
+                        alert("대화 내용 및 전용 System Command 설정을 성공적으로 복원했습니다.");
+                    } else {
+                        alert("가져오기 실패: 올바르지 않은 백업 파일 양식입니다.");
+                    }
+                } catch (err) {
+                    alert("파일 읽기 실패: 올바른 백업 .txt(JSON 형식) 파일이 아닙니다.");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // 2번 조건: Enter 단독 클릭 시 전송 처리 및 Shift+Enter 허용 바인딩 구현
+        function handleKeyDown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // 기본 개행 동작 방지
+                sendMessage(); // 전송 함수 직접 수행
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+
+</html>
