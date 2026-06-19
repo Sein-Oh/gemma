@@ -38,6 +38,13 @@
             width: 100vw;
             height: 100vh;
             overflow: hidden;
+            position: relative;
+        }
+
+        body,
+        #app-container {
+            height: 100dvh;
+            /* vh 대신 dvh 사용 */
         }
 
         /* 대화 목록 사이드바 */
@@ -50,11 +57,28 @@
             padding: 20px;
             box-sizing: border-box;
             border-right: 1px solid #374151;
-            transition: all 0.3s ease;
+            transition: transform 0.3s ease, margin-left 0.3s ease;
+            z-index: 100;
         }
 
         #sidebar.hidden {
             margin-left: -280px;
+        }
+
+        /* 모바일용 사이드바 배경 블러 오버레이 */
+        #sidebar-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 99;
+        }
+
+        #sidebar-overlay.show {
+            display: block;
         }
 
         .sidebar-title {
@@ -126,40 +150,39 @@
             box-sizing: border-box;
             overflow: hidden;
             padding: 20px;
+            min-width: 0;
         }
 
         /* 상단 설정 패널 */
-        /* 1. 레이아웃 줄바꿈 방지 및 자연스러운 변화 */
         #settings-panel {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
+            margin-bottom: 10px;
         }
 
         .setting-group {
             display: flex;
             flex-direction: column;
             gap: 5px;
-            white-space: nowrap;
-            /* 텍스트 줄바꿈 방지 */
         }
 
         .title_label {
             font-size: 12px;
             font-weight: 600;
             color: #6b7280;
-            margin: 10px;
+            margin: 5px 0;
         }
 
-        .setting-group textarea {
+        #system-prompt {
             padding: 8px;
             border: 1px solid var(--border-color);
             border-radius: 12px;
             font-size: 14px;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
             resize: none;
+            font-family: inherit;
         }
-
 
         /* 공통 버튼 */
         button {
@@ -171,7 +194,6 @@
             font-size: 13px;
             font-weight: 500;
             transition: all 0.2s;
-            margin-top: 5px;
         }
 
         button:hover {
@@ -208,10 +230,10 @@
         #chat-box {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 15px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px;
         }
 
         /* 대화 세트 */
@@ -243,7 +265,7 @@
         }
 
         .msg-block {
-            margin-top: 10px;
+            margin-top: 15px;
         }
 
         .msg-block .role {
@@ -258,7 +280,6 @@
             white-space: pre-wrap;
         }
 
-        /* 줄바꿈 시각화 */
         .msg-ai {
             color: #065f46;
             background: #fff;
@@ -300,9 +321,10 @@
             background: #fdfdfd;
             border-top: 1px solid var(--border-color);
             display: flex;
-            gap: 25px;
+            gap: 20px;
             align-items: center;
             border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
         }
 
         .param-inline-group {
@@ -318,18 +340,18 @@
         }
 
         .param-inline-group input[type="range"] {
-            width: 140px;
+            width: 110px;
             cursor: pointer;
         }
 
-        /* 2번 조건: 입력 영역 (줄바꿈이 잘 보이도록 크기 최적화) */
+        /* 입력 영역 */
         #input-panel {
-            padding: 15px;
+            padding: 12px;
             display: flex;
-            flex: 0.2;
             gap: 10px;
             background: #fff;
             align-items: center;
+            box-sizing: border-box;
         }
 
         #user-input {
@@ -338,47 +360,92 @@
             border: 1px solid var(--border-color);
             border-radius: 8px;
             resize: none;
-            height: 100%;
+            height: 48px;
             font-size: 14px;
             box-sizing: border-box;
             font-family: inherit;
         }
 
-        /* 사이드바 애니메이션과 메인 레이아웃의 자연스러운 결합 */
-        #main-layout {
+        #chat-title-input {
+            border: 1px solid transparent;
+            border-radius: 8px;
+            height: 34px;
             flex: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            overflow: hidden;
-            padding: 20px;
-            min-width: 0;
+            font-size: 15px;
+            color: var(--text-main);
+            padding: 0 8px;
+            background: transparent;
         }
 
-        #chat-title-input {
-            border: none;
-            border-radius: 12px;
-            height: 30px;
-            flex: 1;
-            font-size: 16px;
-            color: #6b7280;
-            padding-left: 5px;
+        #chat-title-input:focus {
+            background: #fff;
+            border-color: var(--border-color);
+            outline: none;
+        }
+
+        /* ---------------- 모바일 화면 모던 레이아웃 반응형 대응 (@media) ---------------- */
+        @media (max-width: 768px) {
+            #main-layout {
+                padding: 10px;
+            }
+
+            /* 모바일에서 사이드바는 절대 좌표 오버레이 형태로 전환 */
+            #sidebar {
+                position: absolute;
+                left: 0;
+                top: 0;
+                height: 100vh;
+                margin-left: 0;
+                transform: translateX(-100%);
+                box-shadow: 4px 0 15px rgba(0, 0, 0, 0.2);
+            }
+
+            #sidebar.hidden {
+                margin-left: 0;
+                transform: translateX(-100%);
+            }
+
+            /* 스크립트로 활성화될 때 화면 안으로 유연하게 진입 */
+            #sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            /* 컨트롤 버튼 위치 조정 최적화 */
+            .set-controls {
+                position: relative;
+                top: 0;
+                right: 0;
+                justify-content: flex-end;
+                margin-bottom: 5px;
+            }
+
+            #inline-param-panel {
+                gap: 12px;
+                padding: 8px 12px;
+            }
+
+            .param-inline-group input[type="range"] {
+                width: 90px;
+            }
         }
     </style>
 </head>
 
 <body>
 
+    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
     <div id="app-container">
         <div id="sidebar">
             <button onclick="promptChangeServer()">서버 변경</button>
-            <button onclick="promptChangeModel()">모델 변경</button>
-            <button onclick="exportToTxt()">대화 내보내기 (.txt)</button>
-            <button onclick="importFromTxt()">대화 불러오기 (.txt)</button>
+            <button onclick="promptChangeModel()" style="margin-top: 5px;">모델 변경</button>
+            <button onclick="exportToTxt()" style="margin-top: 5px;">대화 내보내기 (.txt)</button>
+            <button onclick="importFromTxt()" style="margin-top: 5px;">대화 불러오기 (.txt)</button>
             <input type="file" id="txt-file-input" style="display: none;" accept=".txt"
                 onchange="handleTxtImport(event)">
-            <hr style='width:100%'>
-            <button class="primary" onclick="createNewThread()" style="width: 100%; font-weight: bold; padding: 10px;">➕
+            <hr style='width:100%; border:0; border-top:1px solid #374151; margin: 15px 0;'>
+            <button class="primary" onclick="createNewThreadAndCloseSidebar()"
+                style="width: 100%; font-weight: bold; padding: 10px;">➕
                 새 대화 시작</button>
             <div class="sidebar-title">💬 대화 목록</div>
             <div id="thread-list" class="thread-list"></div>
@@ -386,43 +453,43 @@
 
         <div id="main-layout">
             <div id="settings-panel">
-                <button onclick="toggleSidebar()" style='width:50px;'>☰</button>
-                <label>대화명</label>
+                <button onclick="toggleSidebar()" style='width:42px; height:34px; font-size:16px; padding:0;'>☰</button>
                 <input type="text" id="chat-title-input" placeholder="대화 제목을 입력하세요"
                     oninput="updateCurrentThreadTitle(this.value)">
             </div>
-            <div class="setting-group" style="grid-column: span 2;">
-                <label class="title_label">System Command (이 대화방의 역할 정의)</label>
-                <textarea id="system-prompt" rows="4" oninput="updateCurrentSystemPrompt(this.value)"></textarea>
+            <div class="setting-group">
+                <label class="title_label">System Command (역할 정의)</label>
+                <textarea id="system-prompt" rows="2" oninput="updateCurrentSystemPrompt(this.value)"
+                    placeholder="시스템 역할을 정의해 주세요..."></textarea>
             </div>
             <label class="title_label">대화 이력</label>
             <div id="chat-container">
                 <div id="chat-box"></div>
                 <div id="inline-param-panel">
                     <div class="param-inline-group">
-                        <label for="param-temp">Temperature: <span id="temp-val"
+                        <label for="param-temp">Temp: <span id="temp-val"
                                 style="font-weight: bold; color: var(--primary);">0.7</span></label>
                         <input type="range" id="param-temp" min="0" max="2.0" step="0.1" value="0.7"
                             oninput="updateTempDisplay(this.value)" onchange="saveSettings()">
                     </div>
                     <div class="param-inline-group">
-                        <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
-                            <input type="checkbox" id="param-thinking" onchange="saveSettings()"> Enable Thinking
+                        <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" id="param-thinking" onchange="saveSettings()"> Thinking
                         </label>
                     </div>
                 </div>
 
                 <div id="input-panel">
-                    <textarea id="user-input" placeholder="메시지를 입력하세요... (Enter로 전송, Shift+Enter로 줄바꿈)"
+                    <textarea id="user-input" placeholder="메시지 입력... (Enter 전송, Shift+Enter 줄바꿈)"
                         onkeydown="handleKeyDown(event)"></textarea>
-                    <button class="primary" onclick="sendMessage()" style="height: 54px; padding: 0 20px;">전송</button>
+                    <button class="primary" onclick="sendMessage()"
+                        style="height: 48px; padding: 0 16px; font-weight: bold;">전송</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // 글로벌 기본 설정 상태
         let config = {
             serverUrl: 'http://localhost:11434',
             modelName: 'gemma4',
@@ -430,14 +497,12 @@
             enableThinking: false
         };
 
-        // 멀티 스레드 대화 구조: 각 방별로 systemPrompt가 개별 포함됨
-        let threads = []; // [{ id, title, systemPrompt, chatSets: [] }]
+        let threads = [];
         let currentThreadId = null;
         let chatSets = [];
         let isGenerating = false;
         let saveTimer = null;
 
-        // 앱 초기 가동 및 로드
         document.addEventListener('DOMContentLoaded', async () => {
             localforage.config({ name: 'Gemma4MultiThreadClient', storeName: 'data_store' });
 
@@ -463,18 +528,40 @@
                 await saveThreadsToStorage();
             }
 
+            // 모바일 초기화 조건 추가: 기본적으로 사이드바 감춤 명시
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.add('hidden');
+            }
+
             syncCurrentThreadData();
             updateSettingsUI();
             renderThreadList();
             renderChatSets();
         });
 
+        // 모바일 서포트 사이드바 여닫이 로직 최적화
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('hidden');
+            const overlay = document.getElementById('sidebar-overlay');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.remove('hidden'); // 충돌 방지
+                const isOpen = sidebar.classList.toggle('mobile-open');
+                if (isOpen) overlay.classList.add('show');
+                else overlay.classList.remove('show');
+            } else {
+                sidebar.classList.remove('mobile-open');
+                sidebar.classList.toggle('hidden');
+            }
         }
 
-        // 1번 조건: 대화방 데이터 동기화 시 시스템 메시지도 매핑 호출
+        function closeSidebarOnMobile() {
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('mobile-open');
+                document.getElementById('sidebar-overlay').classList.remove('show');
+            }
+        }
+
         function syncCurrentThreadData() {
             const activeThread = threads.find(t => t.id === currentThreadId);
             if (activeThread) {
@@ -496,12 +583,18 @@
             renderChatSets();
         }
 
+        function createNewThreadAndCloseSidebar() {
+            createNewThread();
+            closeSidebarOnMobile();
+        }
+
         async function switchThread(id) {
             currentThreadId = id;
             await localforage.setItem('gemma_current_thread_id', currentThreadId);
             syncCurrentThreadData();
             renderThreadList();
             renderChatSets();
+            closeSidebarOnMobile(); // 방 전환 시 모바일 사이드바 자동 닫힘
         }
 
         async function updateCurrentThreadTitle(newTitle) {
@@ -513,7 +606,6 @@
             }
         }
 
-        // 1번 조건: 시스템 메시지 실시간 변경 및 대화방 오브젝트 내 영구 저장
         function updateCurrentSystemPrompt(val) {
             const activeThread = threads.find(t => t.id === currentThreadId);
             if (activeThread) {
@@ -609,7 +701,7 @@
 
                 setDiv.innerHTML = `
                 <div class="set-controls">
-                    <button onclick="toggleExclude('${set.id}')">${set.excluded ? '🔄 다시 포함' : '🚫 맥락 제외'}</button>
+                    <button onclick="toggleExclude('${set.id}')">${set.excluded ? '🔄 포함' : '🚫 제외'}</button>
                     <button onclick="deleteSet('${set.id}')" ${set.excluded ? '' : 'disabled'} style="${set.excluded ? 'color:var(--danger);' : ''}">🗑️ 삭제</button>
                 </div>
                 <div class="msg-block">
@@ -645,9 +737,8 @@
             }
         }
 
-
         async function sendMessage() {
-            const start = performance.now()
+            const start = performance.now();
             if (isGenerating) return;
             const inputEl = document.getElementById('user-input');
             const content = inputEl.value.trim();
@@ -678,10 +769,9 @@
             apiMessages.push({ role: 'user', content });
 
             try {
-
                 const endpoint = config.serverUrl.replace(/\/$/, '').endsWith('/v1/chat/completions')
                     ? config.serverUrl.replace(/\/$/, '')
-                    : `${config.serverUrl.replace(/\/$/, '')}/v1/chat/completions`
+                    : `${config.serverUrl.replace(/\/$/, '')}/v1/chat/completions`;
 
                 const response = await fetch(endpoint, {
                     method: 'POST',
@@ -701,7 +791,6 @@
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-
                 const aiContentDiv = document.querySelector(`#set-${newSetId} .ai-content-area`);
 
                 let fullReply = '';
@@ -734,10 +823,9 @@
                 }
 
                 newSet.ai = fullReply;
-                const end = performance.now()
-                const elapsed = ((end - start) / 1000).toFixed(1)
-                aiContentDiv.innerHTML += `[${elapsed}초 소요]`
-                console.log(end-start)
+                const end = performance.now();
+                const elapsed = ((end - start) / 1000).toFixed(1);
+                aiContentDiv.innerHTML += ` [${elapsed}초 소요]`;
                 await saveThreadsToStorage();
 
             } catch (e) {
@@ -747,7 +835,6 @@
             }
         }
 
-        // 1번 조건 보완: 내보내기 시 대화셋과 함께 방 고유 시스템 프롬프트도 묶어서 관리
         function exportToTxt() {
             if (chatSets.length === 0) {
                 alert("내보낼 대화 기록이 없습니다.");
@@ -782,7 +869,6 @@
             document.getElementById('txt-file-input').click();
         }
 
-        // 1번 조건 보완: 불러오기 시 저장되어 있던 시스템 프롬프트를 함께 신규 대화방으로 인코딩 통합
         function handleTxtImport(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -824,11 +910,10 @@
             event.target.value = '';
         }
 
-        // 2번 조건: Enter 단독 클릭 시 전송 처리 및 Shift+Enter 허용 바인딩 구현
         function handleKeyDown(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault(); // 기본 개행 동작 방지
-                sendMessage(); // 전송 함수 직접 수행
+                e.preventDefault();
+                sendMessage();
             }
         }
 
